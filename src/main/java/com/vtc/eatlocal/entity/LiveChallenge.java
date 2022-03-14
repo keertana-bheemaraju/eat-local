@@ -18,7 +18,7 @@ public class LiveChallenge {
 
     private String cuisine;
 
-    private String purchase;
+    private Integer purchase;
 
     private String reward;
 
@@ -33,9 +33,6 @@ public class LiveChallenge {
     private Integer minimum;
 
     private Integer maximum;
-
-    @ManyToMany(mappedBy = "customerChallenges")
-    private Set<User> userList = new HashSet<>();
 
 
     public Integer getChallengeId() {
@@ -62,11 +59,11 @@ public class LiveChallenge {
         this.cuisine = cuisine;
     }
 
-    public String getPurchase() {
+    public Integer getPurchase() {
         return purchase;
     }
 
-    public void setPurchase(String purchase) {
+    public void setPurchase(Integer purchase) {
         this.purchase = purchase;
     }
 
@@ -126,11 +123,4 @@ public class LiveChallenge {
         this.maximum = maximum;
     }
 
-    public Set<User> getUserList() {
-        return userList;
-    }
-
-    public void setUserList(Set<User> userList) {
-        this.userList = userList;
-    }
 }

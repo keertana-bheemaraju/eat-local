@@ -57,4 +57,27 @@ public class EmailService {
         }
 
     }
+
+    public void sendRestaurantPasswordResetEmail(String recepientEmailAddress) {
+
+        try {
+
+            Message message = new MimeMessage(session);
+            message.setFrom(new InternetAddress("kebmrj@gmail.com"));
+            message.setRecipients(
+                    Message.RecipientType.TO,
+                    InternetAddress.parse(recepientEmailAddress)
+            );
+            message.setSubject("Password reset email");
+            message.setText("Please visit this link to reset your Eat Local password http://localhost:3000/reset-restaurant-password ");
+
+            Transport.send(message);
+
+            System.out.println("Done");
+
+        } catch (MessagingException e) {
+            e.printStackTrace();
+        }
+
+    }
 }

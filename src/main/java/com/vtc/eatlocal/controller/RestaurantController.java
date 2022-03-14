@@ -3,18 +3,16 @@ package com.vtc.eatlocal.controller;
 import com.vtc.eatlocal.entity.*;
 import com.vtc.eatlocal.model.*;
 import com.vtc.eatlocal.repository.*;
-import com.vtc.eatlocal.service.restaurant.RestaurantExitChallengeService;
-import com.vtc.eatlocal.service.restaurant.RestaurantJoinChallengeService;
+import com.vtc.eatlocal.service.restaurant.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 @Controller
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = {"http://localhost:3000", "http://192.168.1.7:3000", "http://192.168.1.7:8080", "http://eat-local.us-east-1.elasticbeanstalk.com"})
 @RequestMapping(path="/restaurant-path") // This means URL's start with /demo (after Application path)
 public class RestaurantController {
 
@@ -34,17 +32,31 @@ public class RestaurantController {
     private LiveChallengeRepository liveChallengeRepository;
 
     @Autowired
-    private ChallengeRestaurantAssociationRepository challengeRestaurantAssociationRepository;
-
-    @Autowired
-    private RestaurantChallengesRepository restaurantChallengesRepository;
-
-
-    @Autowired
     private RestaurantJoinChallengeService restaurantJoinChallengeService;
 
     @Autowired
     private RestaurantExitChallengeService restaurantExitChallengeService;
+
+    @Autowired
+    private RestaurantChallengeService restaurantChallengeService;
+
+    @Autowired
+    private OrderValidationService orderValidationService;
+
+    @Autowired
+    private RedeemRewardService redeemRewardService;
+
+    @Autowired
+    private OrderReportsService orderReportsService;
+
+    @Autowired
+    private RewardReportService rewardReportService;
+
+    @Autowired
+    private RestaurantAccountService restaurantAccountService;
+
+    @Autowired
+    private OpenChallengeService openChallengeService;
 
     @PostMapping(path="/save-data") // Map ONLY POST Requests
     public @ResponseBody
@@ -121,11 +133,19 @@ public class RestaurantController {
     public @ResponseBody
     ProposeChallengeResponse proposeChallenge (@RequestBody OpenChallenge openChallenge) {
 
-       ProposeChallengeResponse challengeResponse = new ProposeChallengeResponse();
+        ProposeChallengeResponse challengeResponse = new ProposeChallengeResponse();
+
+        if(openChallengeService.doesOpenChallengeExist(openChallenge.getChallengeTitle())) {
+            challengeResponse.setProposeChallengeStatus(false);
+            challengeResponse.setProposeChallengeMessage("Challenge Already Exists!");
+            return challengeResponse;
+        }
+
        try {
            openChallenge.setVacancy(openChallenge.getMaximum());
            openChallengeRepository.save(openChallenge);
            challengeResponse.setProposeChallengeStatus(true);
+           challengeResponse.setProposeChallengeMessage("Challenge created successfully!");
        }
        catch(Exception e) {
            challengeResponse.setProposeChallengeStatus(false);
@@ -142,35 +162,13 @@ public class RestaurantController {
     }
 
     @PostMapping(path="/get-enrolled-challenges")
-    public @ResponseBody Iterable<String> getEnrolledChallenges(@RequestBody JoinChallengeInfo joinChallengeInfo) {
-        Optional<RestaurantChallenges> resChallengesFromDb = restaurantChallengesRepository.findById(joinChallengeInfo.getRestaurantId());
-        List<String> enrolledChallenges = new ArrayList<>();
-        if(resChallengesFromDb.isPresent()) {
-            for(String challenge : resChallengesFromDb.get().getChallengeList().split(DELIMITTER_COMMA)) {
-                enrolledChallenges.add(challenge.trim());
-            }
-        }
-
-        return  enrolledChallenges;
+    public @ResponseBody Iterable<String> getEnrolledChallengeIds(@RequestBody JoinChallengeInfo joinChallengeInfo) {
+        return restaurantChallengeService.getEnrolledChallengeIds(joinChallengeInfo);
     }
 
     @PostMapping(path="/get-enrolled-challenge-names")
     public @ResponseBody Iterable<String> getEnrolledChallengeNames(@RequestBody JoinChallengeInfo joinChallengeInfo) {
-        Optional<RestaurantChallenges> resChallengesFromDb = restaurantChallengesRepository.findById(joinChallengeInfo.getRestaurantId());
-        List<String> enrolledChallenges = new ArrayList<>();
-        if(resChallengesFromDb.isPresent()) {
-            for(String challenge : resChallengesFromDb.get().getChallengeNameList().split(DELIMITTER_COMMA)) {
-                enrolledChallenges.add(challenge.trim());
-            }
-        }
-
-        return  enrolledChallenges;
-    }
-
-    @GetMapping(path="/all-live-challenges")
-    public @ResponseBody Iterable<LiveChallenge> getAllLiveChallenges() {
-        // This returns a JSON or XML with the users
-        return liveChallengeRepository.findAll();
+       return restaurantChallengeService.getEnrolledChallengeNames(joinChallengeInfo);
     }
 
 
@@ -186,30 +184,67 @@ public class RestaurantController {
         return restaurantExitChallengeService.exitChallenge(joinChallengeInfo);
     }
 
-    @PostMapping(path = "/save-res-challenge")
-    public  @ResponseBody  void saveRestaurantChallenges(@RequestBody ChallengeRestaurantAssociation cra) {
-        Optional<ChallengeRestaurantAssociation> cra_db = challengeRestaurantAssociationRepository.findById(cra.getChallengeTitle());
-        if(cra_db.isPresent()) {
+//    @PostMapping(path = "/get-all-restaurantIds-for-challenge")
+//    public @ResponseBody
+//    Iterable<String> getAllRestaurantIdsForChallenge(@RequestBody CustomerChallenegeAssociation cca) {
+//        return restaurantChallengeService.getAllRestaurantsForChallenge(cca);
+//    }
 
-            cra.setRestaurantList(cra.getRestaurantList() + DELIMITTER_COMMA + cra_db.get().getRestaurantList());
-            challengeRestaurantAssociationRepository.save(cra);
-        } else {
-            challengeRestaurantAssociationRepository.save(cra);
-        }
+    @GetMapping(path = "/get-all-restaurants-for-challenge")
+    public @ResponseBody
+    Iterable<Restaurant> getAllRestaurantsForChallenge(@RequestParam int challengeId) {
+        return restaurantChallengeService.getAllRestaurantsForChallenge(challengeId);
     }
 
-    @PostMapping(path = "/get-all-restaurants-for-challenge")
+    @GetMapping(path = "/get-all-restaurant-names-for-challenge")
     public @ResponseBody
-    Iterable<String> getAllRestaurantsForChallenge(@RequestBody CustomerChallenegeAssociation cca) {
-        Optional<ChallengeRestaurantAssociation> cra_db = challengeRestaurantAssociationRepository.findById(cca.getChallengeTitle());
-        List<String> op = new ArrayList<>();
-        if(cra_db.isPresent()) {
-            for(String s : cra_db.get().getRestaurantList().split(DELIMITTER_COMMA)) {
-                op.add(s.trim());
-            }
-        }
+    List<String> getAllRestaurantNamesForChallenge(@RequestParam int challengeId) {
+        return restaurantChallengeService.getAllRestaurantNamesForChallenge(challengeId);
+    }
 
-        return op;
+    @GetMapping(path="/all-live-challenges")
+    public @ResponseBody Iterable<LiveChallenge> getAllLiveChallenges() {
+        // This returns a JSON or XML with the users
+        return liveChallengeRepository.findAll();
+    }
+
+    @PostMapping(path="/validate-order")
+    public @ResponseBody OrderValidationResponse validateOrder(@RequestBody OrderValidation orderValidation) {
+        return orderValidationService.validateOrder(orderValidation);
+    }
+
+    @PostMapping(path="/validate-order-with-value-check")
+    public @ResponseBody OrderValidationResponse validateOrderWithValueCheck(@RequestBody OrderValidation orderValidation) {
+        return orderValidationService.validateOrderWithOrderValue(orderValidation);
+    }
+
+    @PostMapping(path="/redeem-reward")
+    public @ResponseBody RedeemRewardResponse redeemReward(@RequestParam int customerId, @RequestParam String customerName,
+                                              @RequestParam int challengeId, @RequestParam String challengeName,
+                                              @RequestParam int restaurantId, @RequestParam String restaurantName) {
+        return  redeemRewardService.redeemReward(customerId, customerName, challengeId, challengeName, restaurantId, restaurantName);
+    }
+
+    @GetMapping(path="/get-report")
+    public @ResponseBody List<OrderValidation> getOrderReport(@RequestParam int restaurantId, @RequestParam String reportType) throws Exception {
+        // This returns a JSON or XML with the users
+        return orderReportsService.generateReport(restaurantId, reportType);
+    }
+
+    @GetMapping(path="/get-reward-report")
+    public @ResponseBody List<RewardHistory> getRewardReport(@RequestParam int restaurantId, @RequestParam String reportType) throws Exception {
+        // This returns a JSON or XML with the users
+        return rewardReportService.generateRewardReport(restaurantId, reportType);
+    }
+
+    @PostMapping(path="/reset-restaurant-password")
+    public @ResponseBody RestaurantLoginResponse resetRestaurantPassword(@RequestBody RestaurantCredentials restaurantCredentials) {
+        return  restaurantAccountService.resetRestaurantPassword(restaurantCredentials);
+    }
+
+    @PostMapping(path="/send-password-reset-email")
+    public @ResponseBody RestaurantLoginResponse sendPasswordResetEmail(@RequestBody Restaurant restaurant) {
+        return  restaurantAccountService.sendPasswordResetEmail(restaurant);
     }
 
 }

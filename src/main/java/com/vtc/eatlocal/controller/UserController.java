@@ -1,20 +1,25 @@
 package com.vtc.eatlocal.controller;
 
-import com.vtc.eatlocal.composition.CustomerLiveChallengeComposition;
 import com.vtc.eatlocal.entity.*;
-import com.vtc.eatlocal.model.CustomerChallenegeAssociation;
+import com.vtc.eatlocal.model.CustomerCreateAccountResponse;
 import com.vtc.eatlocal.model.CustomerLoginResponse;
 import com.vtc.eatlocal.repository.*;
-import com.vtc.eatlocal.model.CustomerCreateAccountResponse;
 import com.vtc.eatlocal.service.EmailService;
+import com.vtc.eatlocal.service.user.ChallengeStatusService;
+import com.vtc.eatlocal.service.user.CustomerRewardsService;
+import com.vtc.eatlocal.service.user.LiveChallengeService;
+import com.vtc.eatlocal.service.user.UserAccountService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.*;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 
 @Controller
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = {"http://localhost:3000", "http://192.168.1.7:3000", "http://192.168.1.7:8080", "http://eat-local.us-east-1.elasticbeanstalk.com"})
 @RequestMapping(path="/user-path") // This means URL's start with /demo (after Application path)
 public class UserController {
 
@@ -26,13 +31,7 @@ public class UserController {
     private CustomerCredentialsRepository customerCredentialsRepository;
 
     @Autowired
-    private OpenChallengeRepository openChallengeRepository;
-
-//    @Autowired
-//    private CustomerChallengesRepository customerChallengesRepository;
-
-    @Autowired
-    private ChallengeCustomerRestaurantAssociationRepository challengeCustomerRestaurantAssociationRepository;
+    private LiveChallengeService liveChallengeService;
 
     @Autowired
     EmailService emailService;
@@ -40,75 +39,26 @@ public class UserController {
     @Autowired
     LiveChallengeRepository liveChallengeRepository;
 
+    @Autowired
+    ChallengeStatusService challengeStatusService;
 
+    @Autowired
+    CustomerRewardsService customerRewardsService;
+
+    @Autowired
+    UserAccountService userAccountService;
 
     @PostMapping(path = "/save-data") // Map ONLY POST Requests
     public @ResponseBody
     CustomerCreateAccountResponse createAccount(@RequestBody User user) {
 
-        CustomerCreateAccountResponse response = new CustomerCreateAccountResponse();
-
-        // return error if email already exists
-        String email = user.getEmail();
-        boolean emailExists = customerCredentialsRepository.findById(email).isPresent();
-        if (emailExists) {
-            response.setCreateAccountStatus(false);
-            response.setCustomerCreateAccountMessage("Email already exists");
-        } else {
-            // Save user data
-            response.setCreateAccountStatus(true);
-            user = userRepository.save(user);
-            response.setCustomerId(user.getCustomerId());
-
-            CustomerCredentials customerCredentials = new CustomerCredentials();
-            customerCredentials.setUsername(user.getEmail());
-            customerCredentials.setPassword(user.getPassword());
-
-            customerCredentialsRepository.save(customerCredentials);
-        }
-
-
-        return response;
+        return userAccountService.createAccount(user);
     }
-
-
-//    @PostMapping (path="/restaurant-proposechallenge")  // Map ONLY POST Requests
-//    public @ResponseBody
-
 
     @PostMapping(path = "/signin") // Map ONLY POST Requests
     public @ResponseBody
     CustomerLoginResponse validateCredentials(@RequestBody CustomerCredentials customerCredentialsEntered) {
-
-        String username = customerCredentialsEntered.getUsername();
-        Optional<CustomerCredentials> credentials_db = customerCredentialsRepository.findById(username);
-
-        CustomerLoginResponse response = new CustomerLoginResponse();
-
-        if (credentials_db.isPresent()) {
-            String passwordFromDB = credentials_db.get().getPassword();
-            String passwordEntered = customerCredentialsEntered.getPassword();
-
-            if (passwordEntered.equals(passwordFromDB)) {
-                response.setLoginStatus(true);
-                List<User> all = userRepository.findAll();
-                for(User user : all) {
-                    if(user.getEmail().equals(customerCredentialsEntered.getUsername())) {
-                        response.setCustomerName(user.getFname());
-                        response.setCustomerId(user.getCustomerId());
-                    }
-                }
-            } else {
-                response.setLoginStatus(false);
-                response.setMessage("Incorrect Password");
-            }
-
-        } else {
-            response.setLoginStatus(false);
-            response.setMessage("Account not found");
-        }
-
-        return response;
+        return userAccountService.validateCredentials(customerCredentialsEntered);
     }
 
     @GetMapping(path = "/get-all-users")
@@ -121,114 +71,30 @@ public class UserController {
     @PostMapping(path = "/get-county-list")
     public @ResponseBody
     Set<String> getCountyList(@RequestBody List<String> cusineList) {
-        System.out.println(cusineList);
-
-        // Get all challenges from DB
-        List<LiveChallenge> liveChallenges = liveChallengeRepository.findAll();
-
-        // Create an empty list
-        Set<String> filteredChallenges = new TreeSet<>();
-
-        // Loop thru each challenge in liveChallenges and add it to filteredChallenge if the challenge's cuisine is present in input
-        for (LiveChallenge challenge : liveChallenges) {
-            if (cusineList.isEmpty() || cusineList.contains(challenge.getCuisine())) {
-                filteredChallenges.add(challenge.getCounty());
-            }
-        }
-
-        return filteredChallenges;
+        return liveChallengeService.getCountyList(cusineList);
     }
 
     @PostMapping(path = "/get-cuisine-list")
     public @ResponseBody
     Set<String> getCuisineList(@RequestBody List<String> countyList) {
-        System.out.println(countyList);
-
-        List<LiveChallenge> liveChallenges = liveChallengeRepository.findAll();
-        Set<String> filteredChallenges = new TreeSet<>();
-
-        for (LiveChallenge challenge : liveChallenges) {
-            if (countyList.isEmpty() || countyList.contains(challenge.getCounty())) {
-                filteredChallenges.add(challenge.getCuisine());
-            }
-
-        }
-
-        return filteredChallenges;
+        return liveChallengeService.getCuisineList(countyList);
     }
 
-
-    @PostMapping(path = "/save-customer-res-challenge")
-    public  @ResponseBody  void saveCustomerRestaurantChallenges(@RequestBody ChallengeCustomerRestaurantAssociation ccra) {
-
-        Optional<ChallengeCustomerRestaurantAssociation> ccra_db = challengeCustomerRestaurantAssociationRepository.findById(ccra.getCustomerId());
-
-        if(ccra_db.isPresent()) {
-            String new_list = ccra_db.get().getValidatedRestaurantsList() + ", " + ccra.getValidatedRestaurantsList();
-            ccra.setValidatedRestaurantsList(new_list);
-            challengeCustomerRestaurantAssociationRepository.save(ccra);
-        } else {
-            challengeCustomerRestaurantAssociationRepository.save(ccra);
-        }
-
+    @GetMapping(path="/get-all-live-restaurant-names")
+    public @ResponseBody Set<String> getAllLiveRestaurantNames() {
+        return liveChallengeService.getRestaurantList();
     }
-
-    @PostMapping(path = "/get-validated-restaurants-for-challenge")
-    public @ResponseBody
-    Iterable<String> getAllRestaurantsForChallenge(@RequestBody CustomerChallenegeAssociation cca) {
-
-        Optional<ChallengeCustomerRestaurantAssociation> cca_db = challengeCustomerRestaurantAssociationRepository.findById(cca.getCustomerId());
-
-        if(cca_db.isPresent()) {
-            ChallengeCustomerRestaurantAssociation challengeCustomerRestaurantAssociation = cca_db.get();
-            List<String> output = new ArrayList<>();
-            String restaurants = challengeCustomerRestaurantAssociation.getValidatedRestaurantsList();
-            String[] split = restaurants.split(",");
-            for(String s : split) {
-                output.add(s.trim());
-            }
-
-          return output;
-
-        } else {
-            return new ArrayList<>();
-        }
-
-    }
-
-
-
 
     @PostMapping(path = "/send-password-reset-email")
     public @ResponseBody
     CustomerLoginResponse sendPasswordResetEmail(@RequestBody User user) {
-
-        // if email address exists, send reset email to that address // else return error message
-        Optional<CustomerCredentials> credsRecord_db = customerCredentialsRepository.findById(user.getEmail());
-
-        CustomerLoginResponse customerLoginResponse = new CustomerLoginResponse();
-
-        if(credsRecord_db.isPresent()) {
-            emailService.sendCustomerPasswordResetEmail(user.getEmail());
-            customerLoginResponse.setLoginStatus(true);
-            customerLoginResponse.setMessage("password reset email sent");
-
-        } else {
-            customerLoginResponse.setLoginStatus(false);
-            customerLoginResponse.setMessage("email doesn't exist");
-        }
-
-        return customerLoginResponse;
-
+        return userAccountService.sendPasswordResetEmail(user);
     }
 
     @PostMapping(path = "/reset-customer-password")
     public @ResponseBody
-    boolean resetCustomerPassword(@RequestBody CustomerCredentials customerCredentials) {
-
-        customerCredentialsRepository.save(customerCredentials);
-
-        return true;
+    CustomerLoginResponse resetCustomerPassword(@RequestBody CustomerCredentials customerCredentials) {
+        return userAccountService.resetCustomerPassword(customerCredentials);
     }
 
     @GetMapping(path="/all-live-challenges")
@@ -236,6 +102,22 @@ public class UserController {
         // This returns a JSON or XML with the users
         return liveChallengeRepository.findAll();
     }
+
+    @GetMapping(path="/get-validated-restaurants-for-challenge")
+    public @ResponseBody Iterable<Restaurant> getValidatedRestaurants(int customerId, int challengeId) {
+        return challengeStatusService.getValidatedRestaurants(customerId, challengeId);
+    }
+
+    @GetMapping(path="/get-rewards")
+    public @ResponseBody List<Reward> getRewards(@RequestParam int customerId) {
+        return customerRewardsService.getCustomerRewards(customerId);
+    }
+
+    @GetMapping(path="/get-progress")
+    public @ResponseBody List<RewardProgress> getCustomerProgress(@RequestParam int customerId) {
+        return customerRewardsService.getCustomerProgress(customerId);
+    }
+
 
 //    @PostMapping(path="/save-customer-challenge")
 //    public @ResponseBody boolean saveCustomerChallenge(CustomerChallenges customerChallenges) {
@@ -283,48 +165,88 @@ public class UserController {
 //    }
 
 
-    @PostMapping(path="/join-challenge")
-    public @ResponseBody boolean joinChallenge(@RequestBody CustomerLiveChallengeComposition composition) {
+//    @PostMapping(path="/join-challenge")
+//    public @ResponseBody boolean joinChallenge(@RequestBody CustomerLiveChallengeComposition composition) {
+//
+//        User customer = composition.getCustomer();
+//        LiveChallenge challenge = composition.getLiveChallenge();
+//        Optional<User> byId = userRepository.findById(customer.getCustomerId());
+//        if(!byId.isPresent()) {
+//            return false;
+//        }
+//
+//        customer = byId.get();
+//
+//        Set<LiveChallenge> customerChallenges = customer.getCustomerChallenges();
+//
+//        if(customerChallenges == null) {
+//            customerChallenges = new HashSet<>();
+//        }
+//
+//        customerChallenges.add(challenge);
+//
+//        customer.setCustomerChallenges(customerChallenges);
+//
+//        userRepository.save(customer);
+//
+//        return true;
+//    }
 
-        User customer = composition.getCustomer();
-        LiveChallenge challenge = composition.getLiveChallenge();
-        Optional<User> byId = userRepository.findById(customer.getCustomerId());
-        if(!byId.isPresent()) {
-            return false;
-        }
-
-        customer = byId.get();
-
-        Set<LiveChallenge> customerChallenges = customer.getCustomerChallenges();
-
-        if(customerChallenges == null) {
-            customerChallenges = new HashSet<>();
-        }
-
-        customerChallenges.add(challenge);
-
-        customer.setCustomerChallenges(customerChallenges);
-
-        userRepository.save(customer);
-
-        return true;
-    }
+//
+//    @GetMapping("/get-customer-challenges")
+//    @ResponseBody
+//    public Set<LiveChallenge> getCustomerChallenges(@RequestParam Integer customerId) {
+//
+//        Set<LiveChallenge> customerChallenges = new HashSet<>();
+//
+//        Optional<User> byId = userRepository.findById(customerId);
+//        if(byId.isPresent()) {
+//            customerChallenges = byId.get().getCustomerChallenges();
+//        }
+//
+//        return customerChallenges;
+//
+//    }
 
 
-    @GetMapping("/get-customer-challenges")
-    @ResponseBody
-    public Set<LiveChallenge> getCustomerChallenges(@RequestParam Integer customerId) {
-
-        Set<LiveChallenge> customerChallenges = new HashSet<>();
-
-        Optional<User> byId = userRepository.findById(customerId);
-        if(byId.isPresent()) {
-            customerChallenges = byId.get().getCustomerChallenges();
-        }
-
-        return customerChallenges;
-
-    }
+//    @PostMapping(path = "/save-customer-res-challenge")
+//    public  @ResponseBody  void saveCustomerRestaurantChallenges(@RequestBody ChallengeCustomerRestaurantAssociation ccra) {
+//
+//        Optional<ChallengeCustomerRestaurantAssociation> ccra_db = challengeCustomerRestaurantAssociationRepository.findById(ccra.getCustomerId());
+//
+//        if(ccra_db.isPresent()) {
+//            String new_list = ccra_db.get().getValidatedRestaurantsList() + ", " + ccra.getValidatedRestaurantsList();
+//            ccra.setValidatedRestaurantsList(new_list);
+//            challengeCustomerRestaurantAssociationRepository.save(ccra);
+//        } else {
+//            challengeCustomerRestaurantAssociationRepository.save(ccra);
+//        }
+//
+//    }
+//
+//    @PostMapping(path = "/get-validated-restaurants-for-challenge")
+//    public @ResponseBody
+//    Iterable<Restaurant> getAllRestaurantsForChallenge(@RequestParam int customerId, @RequestParam int challengeId) {
+//
+//        Optional<ChallengeCustomerRestaurantAssociation> cca_db = challengeCustomerRestaurantAssociationRepository.findById(customerId);
+//
+//        if(cca_db.isPresent()) {
+//            ChallengeCustomerRestaurantAssociation challengeCustomerRestaurantAssociation = cca_db.get();
+//            List<Restaurant> output = new ArrayList<>();
+//            String restaurants = challengeCustomerRestaurantAssociation.getValidatedRestaurantsList();
+//            String[] split = restaurants.split(",");
+//            for(String s : split) {
+//                int restaurantId = Integer.parseInt(s.split(":")[0]);
+//                output.add(restaurantRepository.findById(restaurantId).get());
+//            }
+//
+//            return output;
+//
+//        } else {
+//            return new ArrayList<>();
+//        }
+//
+//    }
 
 }
 

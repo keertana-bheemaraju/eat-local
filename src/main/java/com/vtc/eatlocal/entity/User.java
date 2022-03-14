@@ -20,12 +20,6 @@ public class User {
     @Transient
     private String password;
 
-    @ManyToMany
-    @JoinTable(
-            name = "customer_challenge",
-            joinColumns = @JoinColumn(name = "customerId"),
-            inverseJoinColumns = @JoinColumn(name = "challengeId"))
-    private Set<LiveChallenge> customerChallenges = new HashSet<>();
 
 
     public Integer getCustomerId() {
@@ -68,11 +62,4 @@ public class User {
         this.password = password;
     }
 
-    public Set<LiveChallenge> getCustomerChallenges() {
-        return customerChallenges;
-    }
-
-    public void setCustomerChallenges(Set<LiveChallenge> customerChallenges) {
-        this.customerChallenges = customerChallenges;
-    }
 }

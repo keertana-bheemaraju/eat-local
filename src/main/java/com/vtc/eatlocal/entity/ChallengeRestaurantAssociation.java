@@ -9,9 +9,13 @@ import javax.persistence.Table;
 public class ChallengeRestaurantAssociation {
 
     @Id
+    private Integer challengeId;
+
     private String challengeTitle;
 
-    private String restaurantList;
+    private String restaurantIdList;
+
+    private String restaurantNameList;
 
     public String getChallengeTitle() {
         return challengeTitle;
@@ -21,11 +25,27 @@ public class ChallengeRestaurantAssociation {
         this.challengeTitle = challengeTitle;
     }
 
-    public String getRestaurantList() {
-        return restaurantList;
+    public Integer getChallengeId() {
+        return challengeId;
     }
 
-    public void setRestaurantList(String restaurantList) {
-        this.restaurantList = restaurantList;
+    public void setChallengeId(Integer challengeId) {
+        this.challengeId = challengeId;
+    }
+
+    public String getRestaurantIdList() {
+        return restaurantIdList;
+    }
+
+    public void setRestaurantIdList(String restaurantIdList) {
+        this.restaurantIdList = restaurantIdList;
+    }
+
+    public String getRestaurantNameList() {
+        return restaurantNameList;
+    }
+
+    public void setRestaurantNameList(String restaurantNameList) {
+        this.restaurantNameList = restaurantNameList;
     }
 }

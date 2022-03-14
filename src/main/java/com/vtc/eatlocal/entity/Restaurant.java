@@ -11,6 +11,8 @@ public class Restaurant {
 
     private String restaurantName;
 
+    private String phone;
+
     private String email;
 
     @Transient
@@ -46,5 +48,13 @@ public class Restaurant {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
     }
 }

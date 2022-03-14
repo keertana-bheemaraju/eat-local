@@ -7,6 +7,8 @@ public class JoinChallengeInfo {
 
     String challengeName;
 
+    String restaurantName;
+
     public String getChallengeId() {
         return challengeId;
     }
@@ -29,6 +31,14 @@ public class JoinChallengeInfo {
 
     public void setChallengeName(String challengeName) {
         this.challengeName = challengeName;
+    }
+
+    public String getRestaurantName() {
+        return restaurantName;
+    }
+
+    public void setRestaurantName(String restaurantName) {
+        this.restaurantName = restaurantName;
     }
 }
 
